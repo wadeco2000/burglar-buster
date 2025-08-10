@@ -70,6 +70,15 @@
     .layout { grid-template-columns: 1fr; }
     .side { display: none !important; }
   }
+
+  /* iPhone-specific layout */
+  canvas#game { display:block; margin:0 auto; }
+  @media (max-width:980px){
+    .layout { grid-template-columns: 1fr; }
+    .side { display:none !important; }
+    .hint { display:none !important; }
+  }
+
 </style>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
@@ -871,6 +880,38 @@ function playMeow(){
   }
   document.addEventListener('DOMContentLoaded', resizeCanvas);
   resizeCanvas();
+})();
+</script>
+
+
+<script>
+// iPhone-friendly canvas fit using innerHeight (handles dynamic bars better)
+(function(){
+  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints>0) || window.matchMedia('(pointer:coarse)').matches;
+  const canvas = document.getElementById('game');
+  if (!canvas) return;
+  function fit(){
+    const vw = Math.max(320, Math.min(window.innerWidth || 0, document.documentElement.clientWidth || 0) - 16);
+    const vh = Math.max(240, (window.innerHeight || 0) - 12);
+    const header = document.querySelector('header');
+    const head = header ? header.getBoundingClientRect().height : 0;
+    const cssW = vw;
+    const cssH = vh - head;
+    canvas.style.width  = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    if (canvas.width !== Math.round(cssW) || canvas.height !== Math.round(cssH)){
+      canvas.width  = Math.round(cssW);
+      canvas.height = Math.round(cssH);
+    }
+    try { if (typeof buildMap==='function') buildMap(); } catch(_){}
+    try { if (typeof draw==='function') requestAnimationFrame(()=>draw(performance.now())); } catch(_){}
+  }
+  // Run on key lifecycle events
+  ['resize','orientationchange','pageshow'].forEach(ev=>window.addEventListener(ev, ()=>setTimeout(fit, 0)));
+  document.addEventListener('DOMContentLoaded', ()=>setTimeout(fit, 0));
+  if (isTouch) window.addEventListener('focus', ()=>setTimeout(fit, 0), {passive:true});
+  // initial
+  setTimeout(fit, 0);
 })();
 </script>
 
