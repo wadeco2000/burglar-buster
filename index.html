@@ -54,8 +54,10 @@
 
   /* Mobile D-pad */
   @media (hover:none) and (pointer:coarse){
-    .pad { position:fixed; left:14px; bottom:18px; width:200px; height:200px; z-index:9998; }
-    .pad .btn { position:absolute; width:72px; height:72px; border-radius:16px; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.22); backdrop-filter: blur(10px); display:flex; align-items:center; justify-content:center; font:700 20px system-ui; color:#e9eef6; user-select:none; touch-action:none; pointer-events:auto; -webkit-user-select:none; -webkit-touch-callout:none; box-shadow:0 0 18px rgba(255,0,0,.22);}
+    .pad { position:fixed; left:12px; bottom:12px; width:180px; height:180px; z-index:9998; }
+    .pad .btn { position:absolute; width:64px; height:64px; border-radius:14px;
+      background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); backdrop-filter: blur(10px);
+      display:flex; align-items:center; justify-content:center; font:700 18px system-ui; color:#e9eef6; user-select:none; }
     .pad .btn:active { background:rgba(255,255,255,.18); }
     .pad .up { left:58px; top:0 }
     .pad .down { left:58px; bottom:0 }
@@ -69,23 +71,9 @@
     .side { display: none !important; }
   }
 
-  /* iPhone-specific layout */
-  canvas#game { display:block; margin:0 auto; }
-  @media (max-width:980px){
-    .layout { grid-template-columns: 1fr; }
-    .side { display:none !important; }
-    .hint { display:none !important; }
-  }
-
-
-  /* Hide D-pad on touch; show joystick instead */
-  @media (hover:none) and (pointer:coarse){
-    .pad { display:none !important; }
-  }
-
-  /* Virtual Joystick */
+/* Touch-only joystick; desktop unaffected */
+@media (hover:none) and (pointer:coarse){
   #joyWrap { position:fixed; left:14px; bottom:18px; width:180px; height:180px; z-index:9999; }
-  @media (min-width: 981px){ #joyWrap{ display:none; } } /* desktop hides */
   #joy { position:absolute; inset:0; border-radius:20px;
          background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); backdrop-filter: blur(8px); }
   #joy .ring { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
@@ -93,6 +81,12 @@
   #joy .stick { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
                 width:72px; height:72px; border-radius:50%; background:rgba(255,255,255,.12);
                 border:1px solid rgba(255,255,255,.34); box-shadow:0 6px 18px rgba(0,0,0,.35); touch-action:none; }
+}
+/* Hide joystick on desktop explicitly */
+@media (hover:hover) and (pointer:fine){
+  #joyWrap { display:none !important; }
+}
+
 </style>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
@@ -818,48 +812,42 @@ function playMeow(){
   const pad = document.getElementById('pad'); if (!pad) return;
   const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints>0);
   if (!isTouch) { pad.style.display='none'; return; }
+  const active = new Set();
 
-  function maybeStart(){
-    try{ if (!state.running) { if (state.playerName) startGame(); else openNameDialog(startGame); } }catch(e){}
-  }
   function press(k){
     try{
-      const s = state.keys;
-      s.add(k.toLowerCase());
-      if (k==='ArrowUp') s.add('w');
-      if (k==='ArrowDown') s.add('s');
-      if (k==='ArrowLeft') s.add('a');
-      if (k==='ArrowRight') s.add('d');
+      state.keys.add(k.toLowerCase());
+      // mirror WASD for compatibility
+      if (k==='ArrowUp') state.keys.add('w');
+      if (k==='ArrowDown') state.keys.add('s');
+      if (k==='ArrowLeft') state.keys.add('a');
+      if (k==='ArrowRight') state.keys.add('d');
     }catch(e){}
   }
   function release(k){
     try{
-      const s = state.keys;
-      s.delete(k.toLowerCase());
-      if (k==='ArrowUp') s.delete('w');
-      if (k==='ArrowDown') s.delete('s');
-      if (k==='ArrowLeft') s.delete('a');
-      if (k==='ArrowRight') s.delete('d');
+      state.keys.delete(k.toLowerCase());
+      if (k==='ArrowUp') state.keys.delete('w');
+      if (k==='ArrowDown') state.keys.delete('s');
+      if (k==='ArrowLeft') state.keys.delete('a');
+      if (k==='ArrowRight') state.keys.delete('d');
     }catch(e){}
   }
 
   function bind(btn){
     const k = btn.getAttribute('data-k');
-    const down = (ev)=>{ ev.preventDefault(); ev.stopPropagation(); maybeStart(); press(k); btn.classList.add('on'); };
-    const up   = (ev)=>{ ev.preventDefault(); ev.stopPropagation(); release(k); btn.classList.remove('on'); };
-
-    btn.addEventListener('pointerdown', down, {passive:false});
-    btn.addEventListener('pointerup', up, {passive:false});
-    btn.addEventListener('pointercancel', up, {passive:false});
-    btn.addEventListener('pointerleave', up, {passive:false});
-
-    btn.addEventListener('touchstart', down, {passive:false});
-    btn.addEventListener('touchend', up, {passive:false});
-    btn.addEventListener('touchcancel', up, {passive:false});
-
-    btn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); maybeStart(); press(k); setTimeout(()=>release(k), 140); }, {passive:false});
+    const start = (ev)=>{ ev.preventDefault(); press(k); active.add(k); btn.classList.add('on'); };
+    const end = (ev)=>{ ev.preventDefault(); release(k); active.delete(k); btn.classList.remove('on'); };
+    // pointer events cover both touch/mouse
+    btn.addEventListener('pointerdown', start, {passive:false});
+    btn.addEventListener('pointerup', end, {passive:false});
+    btn.addEventListener('pointercancel', end, {passive:false});
+    btn.addEventListener('pointerleave', end, {passive:false});
   }
   pad.querySelectorAll('.btn').forEach(bind);
+
+  // If touch ends outside button, clear all
+  window.addEventListener('pointerup', ()=>{ active.forEach(release); active.clear(); }, {passive:true});
 })();
 </script>
 
@@ -904,39 +892,8 @@ function playMeow(){
 </script>
 
 
-<script>
-// iPhone-friendly canvas fit using innerHeight (handles dynamic bars better)
-(function(){
-  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints>0) || window.matchMedia('(pointer:coarse)').matches;
-  const canvas = document.getElementById('game');
-  if (!canvas) return;
-  function fit(){
-    const vw = Math.max(320, Math.min(window.innerWidth || 0, document.documentElement.clientWidth || 0) - 16);
-    const vh = Math.max(240, (window.innerHeight || 0) - 12);
-    const header = document.querySelector('header');
-    const head = header ? header.getBoundingClientRect().height : 0;
-    const cssW = vw;
-    const cssH = vh - head;
-    canvas.style.width  = cssW + 'px';
-    canvas.style.height = cssH + 'px';
-    if (canvas.width !== Math.round(cssW) || canvas.height !== Math.round(cssH)){
-      canvas.width  = Math.round(cssW);
-      canvas.height = Math.round(cssH);
-    }
-    try { if (typeof buildMap==='function') buildMap(); } catch(_){}
-    try { if (typeof draw==='function') requestAnimationFrame(()=>draw(performance.now())); } catch(_){}
-  }
-  // Run on key lifecycle events
-  ['resize','orientationchange','pageshow'].forEach(ev=>window.addEventListener(ev, ()=>setTimeout(fit, 0)));
-  document.addEventListener('DOMContentLoaded', ()=>setTimeout(fit, 0));
-  if (isTouch) window.addEventListener('focus', ()=>setTimeout(fit, 0), {passive:true});
-  // initial
-  setTimeout(fit, 0);
-})();
-</script>
-
-
-<div id="joyWrap" aria-hidden="true">
+<!-- Touch-only virtual joystick -->
+<div id="joyWrap" aria-hidden="true" style="display:none">
   <div id="joy">
     <div class="ring"></div>
     <div class="stick" id="joyStick"></div>
@@ -946,74 +903,53 @@ function playMeow(){
 
 <script>
 (function(){
+  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints>0) || window.matchMedia('(pointer:coarse)').matches;
   const wrap = document.getElementById('joyWrap');
+  if (!isTouch || !wrap) return; // desktop: bail
+  wrap.style.display = 'block';
+
   const area = document.getElementById('joy');
   const stick = document.getElementById('joyStick');
-  if (!wrap || !area || !stick) return;
-  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints>0);
-  if (!isTouch){ wrap.style.display='none'; return; }
+  if (!area || !stick) return;
 
-  const center = () => {
-    stick.style.left = '50%'; stick.style.top = '50%'; stick.style.transform = 'translate(-50%,-50%)';
-  };
+  const center = () => { stick.style.left='50%'; stick.style.top='50%'; stick.style.transform='translate(-50%,-50%)'; };
   center();
 
   function maybeStart(){
     try{ if (!state.running) { if (state.playerName) startGame(); else openNameDialog(startGame); } }catch(e){}
   }
-
   function setKeysFromVector(nx, ny){
-    // Clear directions first
-    const dirs = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'];
-    try{
-      dirs.forEach(k => state.keys.delete(k.toLowerCase()));
-    }catch(e){}
-    const t = 0.30; // threshold
+    const dirs = ['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'];
+    try{ dirs.forEach(k=>state.keys.delete(k)); }catch(e){}
+    const t = 0.30;
     if (ny < -t){ state.keys.add('arrowup'); state.keys.add('w'); }
     if (ny >  t){ state.keys.add('arrowdown'); state.keys.add('s'); }
     if (nx < -t){ state.keys.add('arrowleft'); state.keys.add('a'); }
     if (nx >  t){ state.keys.add('arrowright'); state.keys.add('d'); }
   }
 
-  let active = false, origin = null, radius = 70;
+  let active = false, radius = 70;
   const getPos = (ev) => {
     const r = area.getBoundingClientRect();
     const p = ev.touches ? ev.touches[0] : ev;
     return { x: p.clientX - (r.left + r.width/2), y: p.clientY - (r.top + r.height/2) };
   };
-
-  const down = (ev)=>{
-    ev.preventDefault(); ev.stopPropagation();
-    maybeStart();
-    active = true;
-    const pos = getPos(ev);
-    origin = { x: pos.x, y: pos.y };
-    move(ev);
-  };
-  const up = (ev)=>{
-    ev.preventDefault(); ev.stopPropagation();
-    active = false;
-    center();
-    setKeysFromVector(0,0);
-  };
+  const down = (ev)=>{ ev.preventDefault(); ev.stopPropagation(); maybeStart(); active=true; move(ev); };
+  const up   = (ev)=>{ ev.preventDefault(); ev.stopPropagation(); active=false; center(); setKeysFromVector(0,0); };
   const move = (ev)=>{
     if (!active) return;
     ev.preventDefault(); ev.stopPropagation();
     const pos = getPos(ev);
-    // vector from centre
     let dx = pos.x, dy = pos.y;
-    const len = Math.hypot(dx, dy) || 1;
+    const len = Math.hypot(dx,dy) || 1;
+    const nx = dx/len, ny = dy/len;
     const cl = Math.min(len, radius);
-    const nx = dx / len, ny = dy / len;
-    // place stick
     stick.style.left = (50 + (cl * nx) / (radius/50)) + '%';
     stick.style.top  = (50 + (cl * ny) / (radius/50)) + '%';
     stick.style.transform = 'translate(-50%,-50%)';
-    // map to keys
     setKeysFromVector(nx, ny);
   };
 
-  // Bind pointer + touch
   area.addEventListener('pointerdown', down, {passive:false});
   window.addEventListener('pointerup', up, {passive:false});
   window.addEventListener('pointercancel', up, {passive:false});
