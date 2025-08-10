@@ -51,6 +51,25 @@
     .layout { grid-template-columns: 1fr; }
     .side { order: -1; margin-bottom: 8px; }
   }
+
+  /* Mobile D-pad */
+  @media (hover:none) and (pointer:coarse){
+    .pad { position:fixed; left:12px; bottom:12px; width:180px; height:180px; z-index:9998; }
+    .pad .btn { position:absolute; width:64px; height:64px; border-radius:14px;
+      background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); backdrop-filter: blur(10px);
+      display:flex; align-items:center; justify-content:center; font:700 18px system-ui; color:#e9eef6; user-select:none; }
+    .pad .btn:active { background:rgba(255,255,255,.18); }
+    .pad .up { left:58px; top:0 }
+    .pad .down { left:58px; bottom:0 }
+    .pad .left { left:0; top:58px }
+    .pad .right { right:0; top:58px }
+  }
+
+
+  @media (max-width: 980px){
+    .layout { grid-template-columns: 1fr; }
+    .side { display: none !important; }
+  }
 </style>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
@@ -759,6 +778,99 @@ function playMeow(){
     window.removeEventListener('touchstart', unlock, {passive:false});
   }
   window.addEventListener('touchstart', unlock, {passive:false});
+})();
+</script>
+
+
+<div class="pad" id="pad" aria-hidden="true">
+  <div class="btn up" data-k="ArrowUp">▲</div>
+  <div class="btn left" data-k="ArrowLeft">◀</div>
+  <div class="btn down" data-k="ArrowDown">▼</div>
+  <div class="btn right" data-k="ArrowRight">▶</div>
+</div>
+
+
+<script>
+(function(){
+  const pad = document.getElementById('pad'); if (!pad) return;
+  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints>0);
+  if (!isTouch) { pad.style.display='none'; return; }
+  const active = new Set();
+
+  function press(k){
+    try{
+      state.keys.add(k.toLowerCase());
+      // mirror WASD for compatibility
+      if (k==='ArrowUp') state.keys.add('w');
+      if (k==='ArrowDown') state.keys.add('s');
+      if (k==='ArrowLeft') state.keys.add('a');
+      if (k==='ArrowRight') state.keys.add('d');
+    }catch(e){}
+  }
+  function release(k){
+    try{
+      state.keys.delete(k.toLowerCase());
+      if (k==='ArrowUp') state.keys.delete('w');
+      if (k==='ArrowDown') state.keys.delete('s');
+      if (k==='ArrowLeft') state.keys.delete('a');
+      if (k==='ArrowRight') state.keys.delete('d');
+    }catch(e){}
+  }
+
+  function bind(btn){
+    const k = btn.getAttribute('data-k');
+    const start = (ev)=>{ ev.preventDefault(); press(k); active.add(k); btn.classList.add('on'); };
+    const end = (ev)=>{ ev.preventDefault(); release(k); active.delete(k); btn.classList.remove('on'); };
+    // pointer events cover both touch/mouse
+    btn.addEventListener('pointerdown', start, {passive:false});
+    btn.addEventListener('pointerup', end, {passive:false});
+    btn.addEventListener('pointercancel', end, {passive:false});
+    btn.addEventListener('pointerleave', end, {passive:false});
+  }
+  pad.querySelectorAll('.btn').forEach(bind);
+
+  // If touch ends outside button, clear all
+  window.addEventListener('pointerup', ()=>{ active.forEach(release); active.clear(); }, {passive:true});
+})();
+</script>
+
+
+<script>
+// Touch-only canvas resize (desktop untouched)
+(function(){
+  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints>0) || window.matchMedia('(pointer:coarse)').matches;
+  if (!isTouch) return;
+  const canvas = document.getElementById('game');
+  if (!canvas) return;
+  function viewportSize(){
+    const vv = window.visualViewport;
+    return vv ? { w: vv.width, h: vv.height } : { w: window.innerWidth, h: window.innerHeight };
+  }
+  function resizeCanvas(){
+    const vp = viewportSize();
+    const header = document.querySelector('header');
+    const headerH = header ? header.getBoundingClientRect().height : 0;
+    const cssW = Math.max(320, vp.w - 16);
+    const cssH = Math.max(240, vp.h - headerH - 12);
+    // style size in CSS pixels
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    // set backing store to match CSS size (keep game coordinates consistent)
+    if (canvas.width !== Math.round(cssW) || canvas.height !== Math.round(cssH)){
+      canvas.width = Math.round(cssW);
+      canvas.height = Math.round(cssH);
+    }
+    try { if (typeof buildMap==='function') buildMap(); } catch(_){}
+    try { if (typeof draw==='function') requestAnimationFrame(()=>draw(performance.now())); } catch(_){}
+  }
+  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('orientationchange', resizeCanvas);
+  if (window.visualViewport){
+    visualViewport.addEventListener('resize', resizeCanvas);
+    visualViewport.addEventListener('scroll', resizeCanvas);
+  }
+  document.addEventListener('DOMContentLoaded', resizeCanvas);
+  resizeCanvas();
 })();
 </script>
 
