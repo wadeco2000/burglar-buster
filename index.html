@@ -265,6 +265,7 @@ function drawShop(kind, x, y) {
   
   // --- Sidebar updates ---
   function updateSidebar(){
+    if (!window.state) return;
     const hScore = document.getElementById('hudScore'); const hCaught = document.getElementById('hudCaught'); const hRecord = document.getElementById('hudRecord');
     const stScore = document.getElementById('statScore');
     const stCaught = document.getElementById('statCaught');
@@ -950,7 +951,7 @@ function playMeow(){
       canvas.width = Math.round(cssW);
       canvas.height = Math.round(cssH);
     }
-    try { if (typeof buildMap==='function') buildMap(); } catch(_){}
+    try { if (typeof buildMap==='function' && window.state) buildMap(); } catch(_){}
     try { if (typeof draw==='function') requestAnimationFrame(()=>draw(performance.now())); } catch(_){}
   }
   window.addEventListener('resize', resizeCanvas);
@@ -1103,7 +1104,7 @@ function playMeow(){
     if (canvas.width !== Math.round(vw) || canvas.height !== Math.round(vh)){
       canvas.width = Math.round(vw);
       canvas.height = Math.round(vh);
-      try { if (typeof buildMap==='function') buildMap(); } catch(_){}
+      try { if (typeof buildMap==='function' && window.state) buildMap(); } catch(_){}
     }
     try { if (typeof draw==='function') requestAnimationFrame(()=>draw(performance.now())); } catch(_){}
   }
