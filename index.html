@@ -77,6 +77,22 @@
     .hint { display:none !important; }
   }
 
+
+  /* Hide D-pad on touch; show joystick instead */
+  @media (hover:none) and (pointer:coarse){
+    .pad { display:none !important; }
+  }
+
+  /* Virtual Joystick */
+  #joyWrap { position:fixed; left:14px; bottom:18px; width:180px; height:180px; z-index:9999; }
+  @media (min-width: 981px){ #joyWrap{ display:none; } } /* desktop hides */
+  #joy { position:absolute; inset:0; border-radius:20px;
+         background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); backdrop-filter: blur(8px); }
+  #joy .ring { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+               width:140px; height:140px; border-radius:50%; border:2px dashed rgba(255,255,255,.25); }
+  #joy .stick { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+                width:72px; height:72px; border-radius:50%; background:rgba(255,255,255,.12);
+                border:1px solid rgba(255,255,255,.34); box-shadow:0 6px 18px rgba(0,0,0,.35); touch-action:none; }
 </style>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
@@ -916,6 +932,97 @@ function playMeow(){
   if (isTouch) window.addEventListener('focus', ()=>setTimeout(fit, 0), {passive:true});
   // initial
   setTimeout(fit, 0);
+})();
+</script>
+
+
+<div id="joyWrap" aria-hidden="true">
+  <div id="joy">
+    <div class="ring"></div>
+    <div class="stick" id="joyStick"></div>
+  </div>
+</div>
+
+
+<script>
+(function(){
+  const wrap = document.getElementById('joyWrap');
+  const area = document.getElementById('joy');
+  const stick = document.getElementById('joyStick');
+  if (!wrap || !area || !stick) return;
+  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints>0);
+  if (!isTouch){ wrap.style.display='none'; return; }
+
+  const center = () => {
+    stick.style.left = '50%'; stick.style.top = '50%'; stick.style.transform = 'translate(-50%,-50%)';
+  };
+  center();
+
+  function maybeStart(){
+    try{ if (!state.running) { if (state.playerName) startGame(); else openNameDialog(startGame); } }catch(e){}
+  }
+
+  function setKeysFromVector(nx, ny){
+    // Clear directions first
+    const dirs = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'];
+    try{
+      dirs.forEach(k => state.keys.delete(k.toLowerCase()));
+    }catch(e){}
+    const t = 0.30; // threshold
+    if (ny < -t){ state.keys.add('arrowup'); state.keys.add('w'); }
+    if (ny >  t){ state.keys.add('arrowdown'); state.keys.add('s'); }
+    if (nx < -t){ state.keys.add('arrowleft'); state.keys.add('a'); }
+    if (nx >  t){ state.keys.add('arrowright'); state.keys.add('d'); }
+  }
+
+  let active = false, origin = null, radius = 70;
+  const getPos = (ev) => {
+    const r = area.getBoundingClientRect();
+    const p = ev.touches ? ev.touches[0] : ev;
+    return { x: p.clientX - (r.left + r.width/2), y: p.clientY - (r.top + r.height/2) };
+  };
+
+  const down = (ev)=>{
+    ev.preventDefault(); ev.stopPropagation();
+    maybeStart();
+    active = true;
+    const pos = getPos(ev);
+    origin = { x: pos.x, y: pos.y };
+    move(ev);
+  };
+  const up = (ev)=>{
+    ev.preventDefault(); ev.stopPropagation();
+    active = false;
+    center();
+    setKeysFromVector(0,0);
+  };
+  const move = (ev)=>{
+    if (!active) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const pos = getPos(ev);
+    // vector from centre
+    let dx = pos.x, dy = pos.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const cl = Math.min(len, radius);
+    const nx = dx / len, ny = dy / len;
+    // place stick
+    stick.style.left = (50 + (cl * nx) / (radius/50)) + '%';
+    stick.style.top  = (50 + (cl * ny) / (radius/50)) + '%';
+    stick.style.transform = 'translate(-50%,-50%)';
+    // map to keys
+    setKeysFromVector(nx, ny);
+  };
+
+  // Bind pointer + touch
+  area.addEventListener('pointerdown', down, {passive:false});
+  window.addEventListener('pointerup', up, {passive:false});
+  window.addEventListener('pointercancel', up, {passive:false});
+  area.addEventListener('pointermove', move, {passive:false});
+
+  area.addEventListener('touchstart', down, {passive:false});
+  window.addEventListener('touchend', up, {passive:false});
+  window.addEventListener('touchcancel', up, {passive:false});
+  area.addEventListener('touchmove', move, {passive:false});
 })();
 </script>
 
