@@ -54,8 +54,8 @@
 
   /* Mobile D-pad */
   @media (hover:none) and (pointer:coarse){
-    .pad { position:fixed; left:12px; bottom:12px; width:180px; height:180px; z-index:9998; }
-    .pad .btn { position:absolute; width:64px; height:64px; border-radius:14px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); backdrop-filter: blur(10px); display:flex; align-items:center; justify-content:center; font:700 18px system-ui; color:#e9eef6; user-select:none; touch-action:none; pointer-events:auto; -webkit-user-select:none; -webkit-touch-callout:none; }
+    .pad { position:fixed; left:14px; bottom:18px; width:200px; height:200px; z-index:9998; }
+    .pad .btn { position:absolute; width:72px; height:72px; border-radius:16px; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.22); backdrop-filter: blur(10px); display:flex; align-items:center; justify-content:center; font:700 20px system-ui; color:#e9eef6; user-select:none; touch-action:none; pointer-events:auto; -webkit-user-select:none; -webkit-touch-callout:none; box-shadow:0 0 18px rgba(255,0,0,.22);}
     .pad .btn:active { background:rgba(255,255,255,.18); }
     .pad .up { left:58px; top:0 }
     .pad .down { left:58px; bottom:0 }
@@ -803,6 +803,9 @@ function playMeow(){
   const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints>0);
   if (!isTouch) { pad.style.display='none'; return; }
 
+  function maybeStart(){
+    try{ if (!state.running) { if (state.playerName) startGame(); else openNameDialog(startGame); } }catch(e){}
+  }
   function press(k){
     try{
       const s = state.keys;
@@ -826,22 +829,19 @@ function playMeow(){
 
   function bind(btn){
     const k = btn.getAttribute('data-k');
-    const down = (ev)=>{ ev.preventDefault(); press(k); btn.classList.add('on'); };
-    const up   = (ev)=>{ ev.preventDefault(); release(k); btn.classList.remove('on'); };
+    const down = (ev)=>{ ev.preventDefault(); ev.stopPropagation(); maybeStart(); press(k); btn.classList.add('on'); };
+    const up   = (ev)=>{ ev.preventDefault(); ev.stopPropagation(); release(k); btn.classList.remove('on'); };
 
-    // Pointer events (modern Safari/Chrome)
     btn.addEventListener('pointerdown', down, {passive:false});
     btn.addEventListener('pointerup', up, {passive:false});
     btn.addEventListener('pointercancel', up, {passive:false});
     btn.addEventListener('pointerleave', up, {passive:false});
 
-    // Touch fallback (older iOS)
     btn.addEventListener('touchstart', down, {passive:false});
     btn.addEventListener('touchend', up, {passive:false});
     btn.addEventListener('touchcancel', up, {passive:false});
 
-    // Click fallback (single-tap impulse)
-    btn.addEventListener('click', (ev)=>{ ev.preventDefault(); press(k); setTimeout(()=>release(k), 140); }, {passive:false});
+    btn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); maybeStart(); press(k); setTimeout(()=>release(k), 140); }, {passive:false});
   }
   pad.querySelectorAll('.btn').forEach(bind);
 })();
