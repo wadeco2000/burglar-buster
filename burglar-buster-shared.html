@@ -264,6 +264,7 @@
     ui.saveNameBtn.disabled = ui.nameInput.value.trim().length === 0;
     ui.nameDialog.showModal();
     setTimeout(()=> ui.nameInput.focus(), 50);
+    ui.nameInput.addEventListener('input', () => { ui.saveNameBtn.disabled = ui.nameInput.value.trim().length === 0; });
     function handleSave(){
       const v = ui.nameInput.value.trim(); if (!v) return;
       setPlayerName(v); ui.nameDialog.close(); cleanup(); if (typeof onSaved === "function") onSaved();
