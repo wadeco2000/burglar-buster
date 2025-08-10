@@ -87,6 +87,20 @@
   #joyWrap { display:none !important; }
 }
 
+
+/* Error banner (always above joystick) */
+#errBar { position:fixed; top:env(safe-area-inset-top,0); left:0; right:0; 
+  z-index:99999; background:#c62828; color:#fff; padding:10px 14px; 
+  font:600 14px/1.3 system-ui, -apple-system, Segoe UI, Roboto, Arial; display:none; }
+#errBar .close { float:right; border:0; background:transparent; color:#fff; font-size:18px; line-height:1; }
+
+/* Joystick swap button */
+@media (hover:none) and (pointer:coarse){
+  #joySwap { position:fixed; right:14px; bottom:18px; width:44px; height:44px; z-index:9999;
+    border-radius:12px; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.28);
+    display:flex; align-items:center; justify-content:center; font:700 16px system-ui; color:#e9eef6; }
+}
+
 </style>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
@@ -959,6 +973,58 @@ function playMeow(){
   window.addEventListener('touchend', up, {passive:false});
   window.addEventListener('touchcancel', up, {passive:false});
   area.addEventListener('touchmove', move, {passive:false});
+})();
+</script>
+
+
+<div id="errBar"><button class="close" aria-label="Dismiss">×</button><span id="errMsg"></span></div>
+<div id="joySwap" aria-hidden="true" style="display:none">⇄</div>
+
+
+<script>
+// Error capture to top banner
+(function(){
+  const bar = document.getElementById('errBar');
+  const msg = document.getElementById('errMsg');
+  const btn = bar?.querySelector('.close');
+  function showError(text){
+    try{
+      if (!bar || !msg) return;
+      msg.textContent = text;
+      bar.style.display = 'block';
+    }catch(e){}
+  }
+  window.addEventListener('error', (e)=>{
+    const where = (e.filename||'').split('/').pop() + (e.lineno? ':'+e.lineno : '');
+    showError(String(e.message||'Error') + (where ? ' — ' + where : ''));
+  });
+  window.addEventListener('unhandledrejection', (e)=>{
+    const reason = e.reason && e.reason.message ? e.reason.message : e.reason;
+    showError('Promise: ' + String(reason));
+  });
+  btn?.addEventListener('click', ()=>{ bar.style.display='none'; });
+})();
+
+// Joystick side swap (left/right)
+(function(){
+  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints>0) || window.matchMedia('(pointer:coarse)').matches;
+  const wrap = document.getElementById('joyWrap');
+  const swap = document.getElementById('joySwap');
+  if (!isTouch || !wrap || !swap) return;
+  swap.style.display = 'flex';
+  function setSide(side){
+    if (side === 'right'){
+      wrap.style.left = 'auto';
+      wrap.style.right = '14px';
+    } else {
+      wrap.style.right = 'auto';
+      wrap.style.left = '14px';
+    }
+  }
+  let rightSide = false;
+  swap.addEventListener('click', (e)=>{ e.preventDefault(); rightSide = !rightSide; setSide(rightSide ? 'right' : 'left'); }, {passive:false});
+  // default left
+  setSide('left');
 })();
 </script>
 
