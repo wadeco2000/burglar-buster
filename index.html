@@ -51,6 +51,53 @@
     .layout { grid-template-columns: 1fr; }
     .side { order: -1; margin-bottom: 8px; }
   }
+
+/* --- Mobile controls and responsive canvas --- */
+.touch-only { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .touch-only { display: block; }
+}
+#touchControls {
+  display: grid;
+  grid-template-areas:
+    ".    up    ."
+    "left stop right"
+    ".   down   .";
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 12px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.tc-btn {
+  width: 68px; height: 68px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.18);
+  color: #fff;
+  font: 700 14px ui-sans-serif,system-ui,Segoe UI,Roboto,Arial;
+  display:flex; align-items:center; justify-content:center;
+  touch-action: none;
+}
+.tc-up   { grid-area: up; }
+.tc-left { grid-area: left; }
+.tc-right{ grid-area: right; }
+.tc-down { grid-area: down; }
+.tc-stop { grid-area: stop; width: 84px; }
+
+/* Keep everything stacked nicely on small screens */
+@media (max-width: 980px){
+  .hud { grid-template-columns: repeat(3,auto); }
+  #sideStats { order: 2; }
+}
+
+/* Let the canvas scale visually while logic stays 720x480 */
+#game {
+  max-width: 100%;
+  height: auto;
+}
+
 </style>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
@@ -90,6 +137,16 @@
         <!-- Clear Leaderboard removed by request -->
 <button class="btn ghost" id="resetBtn" style="display:none" hidden>Clear Leaderboard</button>
         <button class="btn ghost" id="safeBtn" title="Starts without name dialog">Safe Start</button>
+      
+<!-- Mobile touch controls (only shown on touch devices) -->
+<div id="touchControls" class="touch-only" aria-label="Touch controls">
+  <button class="tc-btn tc-up"   data-key="ArrowUp"   aria-label="Up">▲</button>
+  <button class="tc-btn tc-left" data-key="ArrowLeft" aria-label="Left">◀</button>
+  <button class="tc-btn tc-right"data-key="ArrowRight"aria-label="Right">▶</button>
+  <button class="tc-btn tc-down" data-key="ArrowDown" aria-label="Down">▼</button>
+  <button class="tc-btn tc-stop" data-key="STOP"      aria-label="Stop">Stop</button>
+</div>
+
       </div></div>
       <div class="side" id="sideStats"><div class="hudBig" style="margin-bottom:10px"><div class="hudScore" id="hudScore">0</div><div class="hudSub"><span id="hudCaught">Caught 0</span> • <span id="hudRecord">Record –</span></div></div><h3>Stats</h3><div class="stat"><span>Score</span><span class="v" id="statScore">0</span></div><div class="stat"><span>Caught</span><span class="v" id="statCaught">0</span></div><div class="stat"><span>Misses</span><span class="v" id="statMisses">0</span></div><div class="stat"><span>Time</span><span class="v" id="statTime">60</span></div><div class="lb"><h3 style="margin-top:12px">Online</h3><div class="stat"><span>Personal Best</span><span class="v" id="statPB">–</span></div><ul id="sideLB"></ul><button class="btn ghost" id="openLeaderSmall" style="margin-top:8px">Full Leaderboard</button></div></div>
       <div class="hint">Controls: <span class="kbd">WASD</span> or <span class="kbd">Arrow Keys</span>. Catch the burglar — hitting the decoy adds a miss.</div>
@@ -759,6 +816,87 @@ function playMeow(){
     window.removeEventListener('touchstart', unlock, {passive:false});
   }
   window.addEventListener('touchstart', unlock, {passive:false});
+})();
+</script>
+
+
+<script>
+// === Responsive canvas scaling without changing game logic size ===
+(function(){
+  const canvas = document.getElementById('game');
+  const WRAP_VPAD = 32; // padding breathing-room in px
+  function resizeGame(){
+    if(!canvas) return;
+    const targetW = 720, targetH = 480;
+    // Use viewport minus some padding to compute scale
+    const maxW = Math.min(window.innerWidth - WRAP_VPAD, targetW);
+    // Reserve vertical room for HUD + buttons on mobile
+    const hudRoom = (window.matchMedia('(hover: none) and (pointer: coarse)').matches) ? 260 : 140;
+    const maxH = Math.min(window.innerHeight - hudRoom, targetH);
+    const scale = Math.max(0.5, Math.min(maxW/targetW, maxH/targetH));
+    canvas.style.width  = (targetW * scale) + 'px';
+    canvas.style.height = (targetH * scale) + 'px';
+  }
+  window.addEventListener('orientationchange', resizeGame);
+  window.addEventListener('resize', resizeGame);
+  window.addEventListener('load', resizeGame);
+  resizeGame();
+})();
+
+// === Touch D‑pad that simulates Arrow key events ===
+(function(){
+  const touchWrap = document.getElementById('touchControls');
+  if(!touchWrap) return;
+
+  const active = new Set();
+  const keyMap = {
+    'ArrowUp':'ArrowUp',
+    'ArrowDown':'ArrowDown',
+    'ArrowLeft':'ArrowLeft',
+    'ArrowRight':'ArrowRight'
+  };
+
+  function dispatch(el, type, key){
+    const evt = new KeyboardEvent(type, {
+      key, code: key, bubbles:true, cancelable:true
+    });
+    document.dispatchEvent(evt);
+  }
+
+  function press(key){
+    if(key === 'STOP'){
+      // Release all currently active directions
+      [...active].forEach(k => { dispatch(null,'keyup',k); });
+      active.clear();
+      return;
+    }
+    if(!active.has(key)){
+      active.add(key);
+      dispatch(null,'keydown',key);
+    }
+  }
+  function release(key){
+    if(active.has(key)){
+      active.delete(key);
+      dispatch(null,'keyup',key);
+    }
+  }
+
+  function bindBtn(btn){
+    const key = btn.getAttribute('data-key');
+    if(!key) return;
+    const start = (e)=>{ e.preventDefault(); press(key); };
+    const end   = (e)=>{ e.preventDefault(); release(key); };
+    btn.addEventListener('touchstart', start, {passive:false});
+    btn.addEventListener('touchend',   end,   {passive:false});
+    btn.addEventListener('touchcancel',end,   {passive:false});
+    // Also support mouse for testing in desktop dev tools
+    btn.addEventListener('mousedown',  start);
+    btn.addEventListener('mouseup',    end);
+    btn.addEventListener('mouseleave', end);
+  }
+
+  touchWrap.querySelectorAll('button').forEach(bindBtn);
 })();
 </script>
 
